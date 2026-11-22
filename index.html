@@ -117,6 +117,13 @@ input[type=text],input[type=number],input[type=date],select,textarea{background:
 .k-item .nm{font-weight:700;font-size:17px}
 .k-item .meta{font-size:13px;color:var(--muted)}
 .k-item .nota{grid-column:1/-1;font-weight:700;color:var(--warn);font-size:14px}
+.k-item.prio{border-left-color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad)}
+.tag{display:inline-block;font-size:12px;font-weight:800;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle;margin-right:4px}
+.tag.prio{background:var(--bad);color:#fff} .tag.ent{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
+.k-sep{padding:4px 12px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2);border-top:1px solid var(--line)}
+.tog{display:flex;gap:8px;flex-wrap:wrap}.tog .btn{flex:1 1 140px;min-height:52px}
+.tog .btn[aria-pressed="true"].p{background:var(--bad);border-color:var(--bad);color:#fff}
+.tog .btn[aria-pressed="true"].e{background:var(--warn);border-color:var(--warn);color:#fff}
 .kbtn{min-width:96px;min-height:52px}
 nav.tabs .badge[hidden]{display:none}
 
@@ -223,6 +230,12 @@ function enviada(l){return l.enviado!==false}
 function completa(l){return enviada(l)&&(l.cocina?l.listo:true)&&l.entregado}
 function lineasDe(mesaId){return Object.values(S.lineas).filter(l=>l.mesaId===mesaId).sort((a,b)=>a.creadoEn-b.creadoEn)}
 function totales(items){const t={alimentos:0,cocteleria:0,refrescos:0,total:0};items.forEach(i=>{const g=t[i.grupo]!=null?i.grupo:"alimentos";t[g]+=Number(i.precio)||0;t.total+=Number(i.precio)||0});return t}
+function esEntrada(l){return !!l.entrada||/entrada/i.test(l.categoria||"")}
+function rangoCocina(l){return l.prioridad?0:esEntrada(l)?1:2}
+function tags(l){return (l.prioridad?'<span class="tag prio">⚡ Prioridad</span>':"")+(esEntrada(l)?'<span class="tag ent">Entrada</span>':"")}
+/* Orden al tomar la orden: lo que pasa por cocina, luego Ingrediente extra, luego Bebidas y Coctelería */
+function rangoCat(c){const n=c.nombre||"";if(/extra/i.test(n))return 1;if(/bebida|cocteler/i.test(n)||!c.cocina)return 2;return 0}
+function catsOrdenadas(cats){return cats.map((c,i)=>({c,i})).sort((a,b)=>rangoCat(a.c)-rangoCat(b.c)||a.i-b.i).map(x=>x.c)}
 function pendientesCocina(){return Object.values(S.lineas).filter(l=>enviada(l)&&l.cocina&&!l.entregado)}
 
 /* ---------- render ---------- */
@@ -251,7 +264,7 @@ function render(){
 function vOrdenes(){
   const mesas=Object.values(S.mesas).sort((a,b)=>a.abiertaEn-b.abiertaEn);
   if(S.selMesa&&!S.mesas[S.selMesa])S.selMesa=null;
-  const cats=(S.menu&&S.menu.categorias)||[];
+  const cats=catsOrdenadas((S.menu&&S.menu.categorias)||[]);
   if(!S.cat||!cats.find(c=>c.id===S.cat))S.cat=cats[0]&&cats[0].id;
   const cat=cats.find(c=>c.id===S.cat);
   let left=`<div class="stack">
@@ -277,16 +290,16 @@ function vCuenta(m){
    <div class="row" style="justify-content:space-between"><h2>${esc(m.nombre)}</h2><span class="label">Abierta ${hora(m.abiertaEn)}</span></div>
    <div class="lineas">${ls.map(l=>{
      let st, acts="";
-     if(!enviada(l)){return `<div class="linea g-${l.grupo}" style="border-style:dashed;background:var(--surface)"><div><div class="nm">${esc(l.nombre)}${l.variante?` <span class="muted">(${esc(l.variante)})</span>`:""}</div>${l.nota?`<div class="nota">» ${esc(l.nota)}</div>`:""}</div><div class="num" style="font-weight:600">${money(l.precio)}</div><div class="acts"><span class="st done">Sin enviar</span><button class="btn sm ghost" data-act="nota" data-id="${l.id}">${l.nota?"Editar nota":"Nota"}</button><button class="btn sm ghost" data-act="quitar-borrador" data-id="${l.id}">Quitar</button></div></div>`}
+     if(!enviada(l)){return `<div class="linea g-${l.grupo}" style="border-style:dashed;background:var(--surface)"><div><div class="nm">${tags(l)}${esc(l.nombre)}${l.variante?` <span class="muted">(${esc(l.variante)})</span>`:""}</div>${l.nota?`<div class="nota">» ${esc(l.nota)}</div>`:""}</div><div class="num" style="font-weight:600">${money(l.precio)}</div><div class="acts"><span class="st done">Sin enviar</span><button class="btn sm ghost" data-act="nota" data-id="${l.id}">${l.nota||l.prioridad||l.entrada?"Editar nota":"Nota / prioridad"}</button><button class="btn sm ghost" data-act="quitar-borrador" data-id="${l.id}">Quitar</button></div></div>`}
      if(completa(l))st=`<span class="st done">✓✓ Entregado</span>`;
      else if(l.cocina&&!l.listo)st=`<span class="st wait">En cocina · ${mins(l.creadoEn)} min</span>`;
      else st=`<span class="st ready">${l.cocina?"✓ Listo en cocina":"Por entregar"}</span>`;
      if(!completa(l)){
        acts+=`<button class="btn sm ${l.cocina&&!l.listo?"":"ok"}" data-act="entregar" data-id="${l.id}" ${l.cocina&&!l.listo?"disabled":""}>Entregado</button>`;
-       if(!l.listo)acts+=`<button class="btn sm ghost" data-act="nota" data-id="${l.id}">${l.nota?"Editar nota":"Nota"}</button>`;
+       if(!l.listo)acts+=`<button class="btn sm ghost" data-act="nota" data-id="${l.id}">${l.nota||l.prioridad||l.entrada?"Editar nota":"Nota / prioridad"}</button>`;
      }else acts+=`<button class="btn sm ghost" data-act="desentregar" data-id="${l.id}">Deshacer</button>`;
      acts+=`<button class="btn sm ghost" data-act="quitar" data-id="${l.id}" aria-label="Quitar ${esc(l.nombre)}">Quitar</button>`;
-     return `<div class="linea g-${l.grupo} ${completa(l)?"done":""}"><div><div class="nm">${esc(l.nombre)}${l.variante?` <span class="muted">(${esc(l.variante)})</span>`:""}</div>${l.nota?`<div class="nota">» ${esc(l.nota)}</div>`:""}</div><div class="num" style="font-weight:600">${money(l.precio)}</div><div class="acts">${st}${acts}</div></div>`}).join("")||'<div class="muted">Sin productos todavía. Toca un platillo para agregarlo.</div>'}</div>
+     return `<div class="linea g-${l.grupo} ${completa(l)?"done":""}"><div><div class="nm">${tags(l)}${esc(l.nombre)}${l.variante?` <span class="muted">(${esc(l.variante)})</span>`:""}</div>${l.nota?`<div class="nota">» ${esc(l.nota)}</div>`:""}</div><div class="num" style="font-weight:600">${money(l.precio)}</div><div class="acts">${st}${acts}</div></div>`}).join("")||'<div class="muted">Sin productos todavía. Toca un platillo para agregarlo.</div>'}</div>
    ${borr.length?`<button class="btn primary" data-act="enviar" style="min-height:56px;font-size:18px">Enviar a cocina (${borr.length}) · ${money(totales(borr).total)}</button>`:""}
    <div class="stack" style="gap:2px;border-top:1px solid var(--line);padding-top:10px">
      ${Object.keys(GRUPOS).map(g=>`<div class="sub"><span>${GRUPOS[g]}</span><span class="num">${money(t[g])}</span></div>`).join("")}
@@ -301,15 +314,16 @@ function vCocina(){
   let ls=pendientesCocina();
   if(S.kfiltro!=="todo")ls=ls.filter(l=>l.grupo===S.kfiltro);
   const por={};ls.forEach(l=>{(por[l.mesaId]=por[l.mesaId]||[]).push(l)});
-  const grupos=Object.keys(por).map(id=>({id,nombre:(S.mesas[id]||{}).nombre||por[id][0].mesaNombre,ls:por[id].sort((a,b)=>a.creadoEn-b.creadoEn)})).sort((a,b)=>a.ls[0].creadoEn-b.ls[0].creadoEn);
+  const grupos=Object.keys(por).map(id=>({id,nombre:(S.mesas[id]||{}).nombre||por[id][0].mesaNombre,ls:por[id].sort((a,b)=>rangoCocina(a)-rangoCocina(b)||a.creadoEn-b.creadoEn)})).map(g=>Object.assign(g,{inicio:Math.min(...g.ls.map(l=>l.creadoEn)),urge:g.ls.some(l=>l.prioridad&&!l.listo)})).sort((a,b)=>(b.urge-a.urge)||a.inicio-b.inicio);
   const filtros=[["todo","Todo"],["alimentos","Alimentos"],["cocteleria","Coctelería"],["refrescos","Refrescos"]];
   return `<div class="stack">
    <div class="row" style="justify-content:space-between"><h2>Cocina</h2>
      <div class="kds-filter">${filtros.map(([k,v])=>`<button class="cat-btn" data-act="kfiltro" data-id="${k}" aria-pressed="${S.kfiltro===k}">${v}</button>`).join("")}</div></div>
-   <p class="muted" style="margin:0">Toca <b>Listo</b> cuando el platillo sale. Se queda en verde hasta que el mesero marque <b>Entregado</b>; con los dos checks desaparece.</p>
-   ${grupos.length?`<div class="kds">${grupos.map(g=>`<section class="ticket"><header><b>${esc(g.nombre)}</b><span class="num">${hora(g.ls[0].creadoEn)}</span></header>
-     ${g.ls.map(l=>{const m=mins(l.creadoEn);const tc=l.listo?"ready":m>=20?"t-bad":m>=10?"t-warn":"";
-       return `<div class="k-item ${tc}"><div><div class="nm">${esc(l.nombre)}${l.variante?" · "+esc(l.variante):""}</div><div class="meta num">${l.listo?"Listo "+hora(l.listoEn)+" · esperando mesero":m+" min esperando"}</div></div>
+   <p class="muted" style="margin:0">Primero salen los platillos con <b>⚡ Prioridad</b>, luego las <b>Entradas</b> y después lo demás. Toca <b>Listo</b> cuando el platillo sale. Se queda en verde hasta que el mesero marque <b>Entregado</b>; con los dos checks desaparece.</p>
+   ${grupos.length?`<div class="kds">${grupos.map(g=>`<section class="ticket"><header><b>${esc(g.nombre)}</b><span class="num">${g.urge?"⚡ ":""}${hora(g.inicio)}</span></header>
+     ${g.ls.map((l,i)=>{const m=mins(l.creadoEn);const tc=(l.listo?"ready":m>=20?"t-bad":m>=10?"t-warn":"")+(l.prioridad&&!l.listo?" prio":"");const prev=g.ls[i-1];
+       const sep=esEntrada(l)&&!l.prioridad&&(!prev||prev.prioridad)?'<div class="k-sep">Entradas</div>':!esEntrada(l)&&!l.prioridad&&prev&&(prev.prioridad||esEntrada(prev))?'<div class="k-sep">Platillos</div>':"";
+       return `${sep}<div class="k-item ${tc}"><div><div class="nm">${tags(l)}${esc(l.nombre)}${l.variante?" · "+esc(l.variante):""}</div><div class="meta num">${l.listo?"Listo "+hora(l.listoEn)+" · esperando mesero":m+" min esperando"}</div></div>
        ${l.listo?`<button class="btn kbtn" data-act="deslistar" data-id="${l.id}">Deshacer</button>`:`<button class="btn ok kbtn" data-act="listo" data-id="${l.id}">Listo</button>`}
        ${l.nota?`<div class="nota">» ${esc(l.nota)}</div>`:""}</div>`}).join("")}</section>`).join("")}</div>`
    :`<div class="panel empty">No hay platillos pendientes. Los nuevos aparecen aquí al instante.</div>`}
@@ -411,7 +425,8 @@ function renderModal(){
   if(m.type==="precio")body=`<h2>${esc(m.p.nombre)}</h2><div class="label">Precio según el peso</div><div class="display num" id="m-disp">$0</div>
      <div class="pad">${["1","2","3","4","5","6","7","8","9",".","0","⌫"].map(k=>`<button data-act="m-key" data-id="${k}">${k}</button>`).join("")}</div>
      <div class="row"><button class="btn ghost" data-act="m-cerrar" style="flex:1">Cancelar</button><button class="btn primary" data-act="m-precio-ok" style="flex:1">Agregar</button></div>`;
-  if(m.type==="nota")body=`<h2>Nota para cocina</h2><input id="m-nota" type="text" value="${esc(m.l.nota||"")}" placeholder="Sin cebolla, para llevar, bien dorado…" autocomplete="off">
+  if(m.type==="nota")body=`<h2>Nota para cocina</h2><div class="muted">${esc(m.l.nombre)}${m.l.variante?" ("+esc(m.l.variante)+")":""}</div>
+     <div class="tog"><button class="btn p" data-act="m-tog" data-id="prioridad" aria-pressed="${!!m.l.prioridad}">⚡ Es prioridad</button><button class="btn e" data-act="m-tog" data-id="entrada" aria-pressed="${esEntrada(m.l)}" ${/entrada/i.test(m.l.categoria||"")?"disabled title=\"Ya es de la categoría Entradas\"":""}>Sale como entrada</button></div><input id="m-nota" type="text" value="${esc(m.l.nota||"")}" placeholder="Sin cebolla, para llevar, bien dorado…" autocomplete="off">
      <div class="row">${["Sin cebolla","Sin chile","Para llevar","Poco picante"].map(s=>`<button class="btn sm" data-act="m-nota-sug" data-id="${s}">${s}</button>`).join("")}</div>
      <div class="row"><button class="btn ghost" data-act="m-cerrar" style="flex:1">Cancelar</button><button class="btn primary" data-act="m-nota-ok" style="flex:1">Guardar nota</button></div>`;
   if(m.type==="confirm")body=`<h2>${esc(m.title)}</h2><p style="margin:0">${esc(m.text)}</p><div class="row"><button class="btn ghost" data-act="m-cerrar" style="flex:1">Cancelar</button><button class="btn ${m.danger?"danger":"primary"}" data-act="m-confirm" style="flex:1">${esc(m.ok)}</button></div>`;
@@ -488,7 +503,9 @@ document.addEventListener("click",async ev=>{
     case "deslistar":upd(id,{listo:false,listoEn:null});break;
     case "nota":openModal({k:uid(),type:"nota",l:S.lineas[id]});break;
     case "m-nota-sug":{const i=document.getElementById("m-nota");i.value=i.value?i.value+", "+id:id;i.focus();break}
-    case "m-nota-ok":{const v=document.getElementById("m-nota").value.trim();const l=S.modal.l;closeModal();upd(l.id,{nota:v});break}
+    case "m-tog":b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")==="true"?"false":"true");break;
+    case "m-nota-ok":{const v=document.getElementById("m-nota").value.trim();const l=S.modal.l;const on=k=>document.querySelector(`[data-act="m-tog"][data-id="${k}"]`).getAttribute("aria-pressed")==="true";
+      const patch={nota:v,prioridad:on("prioridad")};if(!/entrada/i.test(l.categoria||""))patch.entrada=on("entrada");closeModal();upd(l.id,patch);break}
     case "quitar-borrador":{delete S.lineas[id];render();try{await S.db.collection("lineas").doc(id).delete()}catch(e){fail(e)}break}
     case "enviar":{const bs=lineasDe(S.selMesa).filter(l=>!enviada(l));const ahora=Date.now();b.disabled=true;
       bs.forEach(l=>{l.enviado=true;l.creadoEn=ahora});render();
@@ -613,7 +630,8 @@ async function start(){
 function agrupar(items){const ag={};(items||[]).forEach(i=>{const k=i.nombre+"|"+(i.variante||"")+"|"+i.precio;ag[k]=ag[k]||{i,n:0};ag[k].n++});return Object.values(ag)}
 function fechaHora(t){const d=new Date(t);return d.toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}
 function lineasTicket(items){return agrupar(items).map(a=>`<div class="ln"><span>${a.n} ${esc(a.i.nombre)}${a.i.variante?" "+esc(a.i.variante):""}</span><span>${money(a.i.precio*a.n)}</span></div>`).join("")}
-function encabezado(){return `<div class="c big">${NEGOCIO}</div><div class="c">Marisquería</div><div class="hr"></div>`}
+const DIRECCION=["Calle: Puntecillas #7","Colonia: Rancho Nuevo","Yautepec, Morelos"];
+function encabezado(){return `<div class="c big">${NEGOCIO}</div>${DIRECCION.map(x=>`<div class="c">${x}</div>`).join("")}<div class="c">Marisquería</div><div class="hr"></div>`}
 function ticketVenta(v,re){
   return encabezado()+(re?`<div class="c b">** REIMPRESIÓN **</div>`:"")+
   `<div>Mesa: ${esc(v.mesaNombre)}</div><div>Fecha: ${fechaHora(v.cerradaEn)}</div><div>Folio: ${esc(String(v.id||"").slice(-6).toUpperCase())}</div><div class="hr"></div>`+
