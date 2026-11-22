@@ -326,9 +326,10 @@ function vCorte(){
   const rank={};v.forEach(x=>(x.items||[]).forEach(i=>{const k=i.nombre+(i.variante?" ("+i.variante+")":"");rank[k]=rank[k]||{n:0,m:0,g:i.grupo};rank[k].n++;rank[k].m+=Number(i.precio)||0}));
   const top=Object.entries(rank).sort((a,b)=>b[1].n-a[1].n||b[1].m-a[1].m).slice(0,10);
   const esHoy=S.fecha===hoy();
+  const impreso=S.caja&&S.caja.cierreImpreso?Number(S.caja.cierreImpreso):null;
   return `<div class="stack">
    <div class="row" style="justify-content:space-between"><h2>Corte de caja</h2>
-     <div class="row">${CAN_PRINT?`<button class="btn" data-act="print-corte">Imprimir corte</button>`:""}<input id="fecha" type="date" value="${S.fecha}" aria-label="Fecha del corte">${esHoy?"":`<button class="btn" data-act="hoy">Hoy</button>`}</div></div>
+     <div class="row">${CAN_PRINT?`<button class="btn" data-act="print-corte">${impreso?"Reimprimir cierre":"Imprimir cierre"}</button>`:""}<input id="fecha" type="date" value="${S.fecha}" aria-label="Fecha del corte">${esHoy?"":`<button class="btn" data-act="hoy">Hoy</button>`}</div></div>
    <div class="tiles">
      ${Object.keys(GRUPOS).map(g=>`<div class="tile g-${g}"><div class="label">${GRUPOS[g]}</div><div class="v num">${money(t[g])}</div></div>`).join("")}
      <div class="tile total"><div class="label">Venta total</div><div class="v num">${money(t.total)}</div><div class="num" style="font-size:13px;opacity:.75">${v.length} cuentas cerradas</div></div>
@@ -349,6 +350,8 @@ function vCorte(){
        <form class="row" data-form="contado"><label class="label" for="contado" style="flex:1 1 100%">Efectivo contado al cerrar (opcional)</label>
          <input id="contado" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${contado!=null?contado:""}" style="flex:1 1 140px"><button class="btn" type="submit">Guardar</button></form>
        ${contado!=null?(()=>{const d=contado-esperado;return `<div class="notice ${Math.abs(d)<0.5?"":"bad"}" style="${Math.abs(d)<0.5?"background:var(--ok-soft);border-color:var(--ok)":""}">${Math.abs(d)<0.5?"La caja cuadra.":d>0?"Sobran "+money(d)+" en caja.":"Faltan "+money(-d)+" en caja."}</div>`})():""}
+       ${CAN_PRINT?`<div class="stack" style="gap:6px;border-top:1px solid var(--line);padding-top:12px"><button class="btn primary" data-act="print-corte">${impreso?"Reimprimir ticket de cierre":"Imprimir ticket de cierre"}</button>
+         <span class="muted" style="font-size:14px">${impreso?"Último impreso: "+fechaHora(impreso)+(S.caja.cierreVeces>1?" ("+S.caja.cierreVeces+" veces)":""):"Imprime cambio inicial, ventas por categoría, gastos y el efectivo que debe haber."}</span></div>`:""}
      </section>
      <section class="panel stack"><h3>Gastos del día</h3>
        <form class="row" data-form="gasto"><input id="g-concepto" type="text" placeholder="Concepto (hielo, gas, tortillas)" style="flex:2 1 180px" autocomplete="off"><input id="g-monto" type="number" inputmode="decimal" min="0" step="any" placeholder="Monto" style="flex:1 1 100px"><button class="btn primary" type="submit">Agregar</button></form>
@@ -475,7 +478,7 @@ document.addEventListener("click",async ev=>{
     case "m-print-cuenta":imprimir(ticketCuenta(S.modal.mesaId));break;
     case "m-print-venta":imprimir(ticketVenta(S.modal.venta,false));break;
     case "reimprimir":{const v=S.ventas.find(x=>x.id===id);if(v)imprimir(ticketVenta(v,true));break}
-    case "print-corte":imprimir(ticketCorte());break;
+    case "print-corte":{const yaImpreso=!!(S.caja&&S.caja.cierreImpreso);imprimir(ticketCorte(yaImpreso));guardarCaja({cierreImpreso:Date.now(),cierreVeces:(Number(S.caja&&S.caja.cierreVeces)||0)+1});break}
     case "prueba-impresion":imprimir(encabezado()+`<div class="c b">TICKET DE PRUEBA</div><div class="c">${fechaHora(Date.now())}</div><div class="hr"></div><div class="c">Si lees esto, la impresora funciona.</div>`);break;
     case "menu-inicial":S.menuDraft=JSON.parse(JSON.stringify(MENU_INICIAL));render();toast("Menú cargado: revisa y toca Guardar menú");break;
     case "logout":if(S.auth){S.auth.signOut().then(()=>location.reload())}break;
@@ -621,17 +624,29 @@ function ticketCuenta(mesaId){
   return encabezado()+`<div class="c b">CUENTA</div><div>Mesa: ${esc(mesa.nombre)}</div><div>Fecha: ${fechaHora(Date.now())}</div><div class="hr"></div>`+
   lineasTicket(ls)+`<div class="hr"></div><div class="ln big"><span>TOTAL</span><span>${money(t.total)}</span></div><div class="hr"></div><div class="c">Gracias por su preferencia</div>`;
 }
-function ticketCorte(){
+function ticketCorte(re){
   const v=S.ventas;const t={alimentos:0,cocteleria:0,refrescos:0,total:0};const pago={efectivo:0,tarjeta:0,transferencia:0};
   v.forEach(x=>{Object.keys(GRUPOS).forEach(g=>t[g]+=Number(x[g])||0);t.total+=Number(x.total)||0;pago[x.pago||"efectivo"]+=Number(x.total)||0});
-  const tg=S.gastos.reduce((s,g)=>s+(Number(g.monto)||0),0);const fondo=Number(S.caja&&S.caja.fondo)||0;
-  const ln=(a,b)=>`<div class="ln"><span>${a}</span><span>${b}</span></div>`;
-  return encabezado()+`<div class="c b">CORTE DE CAJA</div><div class="c">${esc(S.fecha)}</div><div class="hr"></div>`+
-   Object.keys(GRUPOS).map(g=>ln(GRUPOS[g],money(t[g]))).join("")+`<div class="ln b"><span>VENTA TOTAL</span><span>${money(t.total)}</span></div><div>${v.length} cuentas</div><div class="hr"></div>`+
-   ln("Cambio inicial",money(fondo))+ln("Ventas efectivo",money(pago.efectivo))+ln("Gastos","-"+money(tg))+`<div class="ln b"><span>EFECTIVO EN CAJA</span><span>${money(fondo+pago.efectivo-tg)}</span></div>`+
-   ln("Tarjeta",money(pago.tarjeta))+ln("Transferencia",money(pago.transferencia))+
-   (S.gastos.length?`<div class="hr"></div><div class="b">Gastos</div>`+S.gastos.map(g=>ln(esc(g.concepto),money(g.monto))).join(""):"")+
-   `<div class="hr"></div><div class="c">Impreso ${fechaHora(Date.now())}</div>`;
+  const gastos=S.gastos.slice().sort((a,b)=>(a.creadoEn||0)-(b.creadoEn||0));
+  const tg=gastos.reduce((s,g)=>s+(Number(g.monto)||0),0);
+  const fondoCap=S.caja&&S.caja.fondo!=null;const fondo=fondoCap?Number(S.caja.fondo)||0:0;
+  const esperado=fondo+pago.efectivo-tg;
+  const contado=S.caja&&S.caja.contado!=null?Number(S.caja.contado):null;
+  const etiqueta={alimentos:"Alimentos",cocteleria:"Coctelería (bebidas)",refrescos:"Refrescos"};
+  const [yy,mm,dd]=String(S.fecha).split("-");
+  const ln=(a,b,c)=>`<div class="ln${c?" "+c:""}"><span>${a}</span><span>${b}</span></div>`;
+  let h=encabezado()+`<div class="c b">CIERRE DE CAJA</div>`+(re?`<div class="c b">** REIMPRESIÓN **</div>`:"")+
+   `<div>Fecha del cierre: ${dd}/${mm}/${yy}</div><div>Impreso: ${fechaHora(Date.now())}</div><div class="hr"></div>`+
+   ln("CAMBIO INICIAL",fondoCap?money(fondo):"$0 (sin capturar)","b")+`<div class="hr"></div>`+
+   `<div class="b">VENTAS</div>`+Object.keys(GRUPOS).map(g=>ln(etiqueta[g]||GRUPOS[g],money(t[g]))).join("")+
+   ln("VENTA TOTAL",money(t.total),"big")+`<div>${v.length} ${v.length===1?"cuenta cerrada":"cuentas cerradas"}</div>`+
+   ln("Efectivo",money(pago.efectivo))+ln("Tarjeta",money(pago.tarjeta))+ln("Transferencia",money(pago.transferencia))+`<div class="hr"></div>`+
+   `<div class="b">GASTOS</div>`+(gastos.length?gastos.map(g=>ln(esc(g.concepto)+(g.creadoEn?" "+hora(g.creadoEn):""),money(g.monto))).join(""):`<div>Sin gastos registrados</div>`)+
+   ln("TOTAL GASTOS",money(tg),"b")+`<div class="hr"></div>`+
+   ln("Cambio inicial",money(fondo))+ln("+ Ventas en efectivo",money(pago.efectivo))+ln("- Gastos",money(tg))+
+   ln("EFECTIVO ESPERADO",money(esperado),"big");
+  if(contado!=null){const d=contado-esperado;h+=ln("Efectivo contado",money(contado))+ln(Math.abs(d)<0.5?"Diferencia":d>0?"SOBRANTE":"FALTANTE",money(Math.abs(d)),"b")}
+  return h+`<div class="hr"></div><div style="margin-top:28px;border-top:2px solid #000"></div><div class="c">Firma de quien entrega</div>`;
 }
 function imprimirLocal(html){const a=document.getElementById("print-area");a.innerHTML=html;window.print()}
 async function imprimir(html){
