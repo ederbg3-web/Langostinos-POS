@@ -630,8 +630,8 @@ async function start(){
 function agrupar(items){const ag={};(items||[]).forEach(i=>{const k=i.nombre+"|"+(i.variante||"")+"|"+i.precio;ag[k]=ag[k]||{i,n:0};ag[k].n++});return Object.values(ag)}
 function fechaHora(t){const d=new Date(t);return d.toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}
 function lineasTicket(items){return agrupar(items).map(a=>`<div class="ln"><span>${a.n} ${esc(a.i.nombre)}${a.i.variante?" "+esc(a.i.variante):""}</span><span>${money(a.i.precio*a.n)}</span></div>`).join("")}
-const DIRECCION=["Calle: Puntecillas #7","Colonia: Rancho Nuevo","Yautepec, Morelos"];
-function encabezado(){return `<div class="c big">${NEGOCIO}</div>${DIRECCION.map(x=>`<div class="c">${x}</div>`).join("")}<div class="c">Marisquería</div><div class="hr"></div>`}
+const DIRECCION=["Puntecillas #7, Rancho Nuevo","Yautepec, Morelos"];
+function encabezado(){return `<div class="c big">${NEGOCIO}</div><div class="c">Marisquería</div>${DIRECCION.map(x=>`<div class="c">${x}</div>`).join("")}<div class="hr"></div>`}
 function ticketVenta(v,re){
   return encabezado()+(re?`<div class="c b">** REIMPRESIÓN **</div>`:"")+
   `<div>Mesa: ${esc(v.mesaNombre)}</div><div>Fecha: ${fechaHora(v.cerradaEn)}</div><div>Folio: ${esc(String(v.id||"").slice(-6).toUpperCase())}</div><div class="hr"></div>`+
