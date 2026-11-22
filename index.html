@@ -163,10 +163,15 @@ details.cta ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:14p
   html,body{background:#fff!important;color:#000!important}
   body::before{display:none!important}
   body>*:not(#print-area){display:none!important}
-  #print-area{display:block!important;width:72mm;margin:0 auto;padding:2mm 0 6mm;color:#000;font:12px/1.35 "Courier New",Courier,monospace}
+  html,body{margin:0!important;padding:0!important;width:80mm}
+  #print-area{display:block!important;width:72mm;margin:0 auto;padding:1mm 0 6mm}
+  #print-area,#print-area *{color:#000!important;background:transparent!important;opacity:1!important;text-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-#print-area .c{text-align:center} #print-area .b{font-weight:700} #print-area .big{font-size:16px;font-weight:700}
-#print-area .hr{border-top:1px dashed #000;margin:4px 0}
+/* Ticket térmico: Arial en negrita, negro puro y sin tamaños menores a 13 px, para que la impresora no lo convierta en gris punteado */
+#print-area{font-family:Arial,Helvetica,sans-serif;font-size:13.5px;line-height:1.3;font-weight:700;color:#000;-webkit-font-smoothing:none;text-rendering:geometricPrecision;letter-spacing:.1px}
+#print-area *{font-family:inherit;font-weight:inherit;font-size:inherit}
+#print-area .c{text-align:center} #print-area .b{font-weight:900} #print-area .big{font-size:20px;font-weight:900}
+#print-area .hr{border-top:2px solid #000;margin:5px 0}
 #print-area .ln{display:flex;justify-content:space-between;gap:6px} #print-area .ln span:first-child{flex:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
